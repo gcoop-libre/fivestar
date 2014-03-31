@@ -1,4 +1,44 @@
 /**
+ * Implements hook_form_alter().
+ */
+function fivestar_form_alter(form, form_state, form_id) {
+  try {
+    
+    //dpm(form_id);
+    //dpm(form);
+    
+    /*
+    
+    // Select list (rated while editing)
+    field_info_instance.widget.type == 'fivestar_select'
+    
+    // Stars (rated while viewing)
+    field_info_instance.widget.type == 'exposed'
+    
+    // Stars (rated while editing)
+    field_info_instance.widget.type == 'stars'
+    
+    */
+    
+    // Any entity add forms, should not have any fivestar fields on them that
+    // have their widget type set to "exposed", aka "Stars (rated while viewing)".
+    if (form.entity_type && !form.entity_id) {
+      $.each(form.elements, function(name, element) {
+          if (
+            element.is_field &&
+            element.type == 'fivestar' &&
+            element.field_info_instance.widget.type == 'exposed'
+          ) {
+            form.elements[name].access = false;
+            form.elements[name].required = false;
+          }
+      });
+    }
+  }
+  catch (error) { console.log('fivestar_form_alter - ' + error); }
+}
+
+/**
  * Implements hook_field_formatter_view().
  */
 function fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display) {
@@ -25,10 +65,21 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
  */
 function fivestar_field_widget_form(form, form_state, field, instance, langcode, items, delta, element) {
   try {
-    dpm(form);
+    
+    
+    
+    
+    /*dpm(form);
     dpm(form_state);
     dpm(field);
     dpm(instance);
+    dpm(element);*/
+    // If the entity doesn't exist yet, remove the element.
+    /*if (!form.entity_id) {
+      console.log('deleting ' + element.name);
+      element = null;
+      return;
+    }*/
     // We'll just hide the actual input, and populate it later.
     items[delta].type = 'hidden';
     // Iterate over each star and place them into a controlgroup.
