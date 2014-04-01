@@ -20,22 +20,54 @@ function fivestar_form_alter(form, form_state, form_id) {
     
     */
     
-    // Any entity add forms, should not have any fivestar fields on them that
-    // have their widget type set to "exposed", aka "Stars (rated while viewing)".
-    if (form.entity_type && !form.entity_id) {
-      $.each(form.elements, function(name, element) {
-          if (
-            element.is_field &&
-            element.type == 'fivestar' &&
-            element.field_info_instance.widget.type == 'exposed'
-          ) {
-            form.elements[name].access = false;
-            form.elements[name].required = false;
+    // Only modify entity forms.
+    if (!form.entity_type) { return; }
+    
+    // Make potential alterations to any entity form that has a fivestar field
+    // on it. There are modifications to both entity add and edit forms.
+    var new_entity = false;
+    if (form.entity_type && !form.entity_id) { new_entity = true; }
+    
+    $.each(form.elements, function(name, element) {
+        if (element.is_field && element.type == 'fivestar') {
+          if (new_entity) {
+            // Remove fivestar element(s) that have their widget type set to
+            // "exposed", aka "Stars (rated while viewing)". Because a rating
+            // can't happen until the entity has been created.
+            if (element.field_info_instance.widget.type == 'exposed') {
+              form.elements[name].access = false;
+              form.elements[name].required = false;
+            }
           }
-      });
-    }
+          else {
+            // Existing entity...
+          }
+        }
+    });
+    
+    
+    
+    
   }
   catch (error) { console.log('fivestar_form_alter - ' + error); }
+}
+
+/**
+ * Implements hook_assemble_form_state_into_field().
+ */
+function fivestar_assemble_form_state_into_field(entity_type, bundle,
+  form_state_value, field, instance, langcode, delta, field_key) {
+  try {
+    field_key.use_key = false;
+    var result = {
+      rating: form_state_value,
+      target: null
+    };
+    return result;
+  }
+  catch (error) {
+    console.log('fivestar_assemble_form_state_into_field - ' + error);
+  }
 }
 
 /**
@@ -65,10 +97,6 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
  */
 function fivestar_field_widget_form(form, form_state, field, instance, langcode, items, delta, element) {
   try {
-    
-    
-    
-    
     /*dpm(form);
     dpm(form_state);
     dpm(field);
@@ -82,21 +110,20 @@ function fivestar_field_widget_form(form, form_state, field, instance, langcode,
     }*/
     // We'll just hide the actual input, and populate it later.
     items[delta].type = 'hidden';
+    // Fivestar uses a value system based on 100, so let's figure out our base value.
+    var base_value = 100/instance.settings.stars;
     // Iterate over each star and place them into a controlgroup.
     var widget = '<div data-role="controlgroup" data-type="horizontal">';
     var stars = [];
     for (var i = 1; i <= instance.settings.stars; i++) {
-      var link = l(
-        i,
-        null,
-        {
-          attributes: {
-            'class': 'ui-btn ui-corner-all ui-icon-star ui-btn-icon-left',
-            onclick: "_fivestar_widget_click(" + i + ")"
-          }
+      var value = base_value*i;
+      var options = {
+        attributes: {
+          'class': 'ui-btn ui-corner-all ui-icon-star ui-btn-icon-left',
+          onclick: "_fivestar_widget_click('" + items[delta].id  + "', " + i + ", " + value + ")"
         }
-      );
-      widget += link;
+      };
+      widget += l(i, null, options);
     }
     widget += '</div>';
     items[delta].children.push({ markup: widget });
@@ -107,22 +134,25 @@ function fivestar_field_widget_form(form, form_state, field, instance, langcode,
 /**
  *
  */
-function _fivestar_widget_click(index) {
+function _fivestar_widget_click(id, index, value) {
   try {
-    var data = {
-      /*id: ,
+    // Set the 'fivestar' attribute equal to the the star number that was
+    // clicked, and set the value equal to the rating value.
+    $('#' + id).attr('fivestar', index).val(value);
+    /*var data = {
+      id: ,
       rating: ,
       entity_type: ,
       tag: ,
       uid: ,
-      skip_validation: ''*/
+      skip_validation: ''
     };
     fivestar_rate({
         data: JSON.stringify(data),
         success: function(result) {
           dpm(result);
         }
-    });
+    });*/
   }
   catch (error) { console.log('_fivestar_widget_click - ' + error); }
 }
