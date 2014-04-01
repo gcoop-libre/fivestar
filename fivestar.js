@@ -1,4 +1,25 @@
 /**
+ *
+ */
+function fivestar_compute_base(stars) {
+  try {
+    // Fivestar uses a value system based on 100.
+    return 100/stars;
+  }
+  catch (error) { console.log('fivestar_compute_base - ' + error); }
+}
+
+/**
+ *
+ */
+function fivestar_compute_value(star, base) {
+  try {
+    return star * base;
+  }
+  catch (error) { console.log('fivestar_compute_value - ' + error); }
+}
+
+/**
  * Implements hook_form_alter().
  */
 function fivestar_form_alter(form, form_state, form_id) {
@@ -75,14 +96,31 @@ function fivestar_assemble_form_state_into_field(entity_type, bundle,
  */
 function fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display) {
   try {
+    // @todo - for some reason instance is coming in as null...? Is it possible
+    // the hook's invoker (DG Core) is sending the instance in the field position by accident?
     /*dpm(entity);
     dpm(field);
     dpm(instance);
-    dpm(items);*/
+    dpm(items);
+    dpm(display);*/
     var element = {};
     // Iterate over each item and assemble the element.
     $.each(items, function(delta, item) {
-        var markup = 'FIVESTAR!';
+        var markup = '';
+        switch (display.settings.style) {
+          case 'average':
+            markup += theme('fivestar', {
+                stars: field.settings.stars,
+                base: fivestar_compute_base(field.settings.stars),
+                entity_type: entity_type,
+                entity_id: entity[entity_primary_key(entity_type)],
+                expose: display.settings.expose
+            });
+            break;
+          default:
+            console.log('fivestar_field_formatter_view - unsupported style (' + display.settings.style + ')');
+            break;
+        }
         element[delta] = {
           markup: markup
         };
@@ -102,28 +140,19 @@ function fivestar_field_widget_form(form, form_state, field, instance, langcode,
     dpm(field);
     dpm(instance);
     dpm(element);*/
-    // If the entity doesn't exist yet, remove the element.
-    /*if (!form.entity_id) {
-      console.log('deleting ' + element.name);
-      element = null;
-      return;
-    }*/
     // We'll just hide the actual input, and populate it later.
     items[delta].type = 'hidden';
-    // Fivestar uses a value system based on 100, so let's figure out our base value.
-    var base_value = 100/instance.settings.stars;
+    var base = fivestar_compute_base(instance.settings.stars);
     // Iterate over each star and place them into a controlgroup.
     var widget = '<div data-role="controlgroup" data-type="horizontal">';
-    var stars = [];
-    for (var i = 1; i <= instance.settings.stars; i++) {
-      var value = base_value*i;
+    for (var star = 1; star <= instance.settings.stars; star++) {
       var options = {
         attributes: {
           'class': 'ui-btn ui-corner-all ui-icon-star ui-btn-icon-left',
-          onclick: "_fivestar_widget_click('" + items[delta].id  + "', " + i + ", " + value + ")"
+          onclick: "_fivestar_widget_click(this, '" + items[delta].id  + "', " + star + ", " + fivestar_compute_value(star, base) + ")"
         }
       };
-      widget += l(i, null, options);
+      widget += l(star, null, options);
     }
     widget += '</div>';
     items[delta].children.push({ markup: widget });
@@ -134,25 +163,33 @@ function fivestar_field_widget_form(form, form_state, field, instance, langcode,
 /**
  *
  */
-function _fivestar_widget_click(id, index, value) {
+function _fivestar_widget_click(link, id, star, rating, entity_type, entity_id, expose) {
   try {
-    // Set the 'fivestar' attribute equal to the the star number that was
-    // clicked, and set the value equal to the rating value.
-    $('#' + id).attr('fivestar', index).val(value);
-    /*var data = {
-      id: ,
-      rating: ,
-      entity_type: ,
-      tag: ,
-      uid: ,
-      skip_validation: ''
-    };
-    fivestar_rate({
-        data: JSON.stringify(data),
-        success: function(result) {
-          dpm(result);
-        }
-    });*/
+    // Activate the link that was clicked, and each sibling preceding it.
+    var classes = 'ui-btn-active ui-state-persist';
+    $(link).removeClass(classes).siblings().removeClass(classes);
+    $(link).addClass(classes).prevAll().addClass(classes);
+    
+    // If we have an input id, set the 'star' attribute equal to the the star
+    // number that was clicked, and set the value equal to the rating value.
+    if (id) { $('#' + id).attr('star', star).val(rating); }
+    // If the widget is exposed, make a service call to save the rating.
+    if (expose) {
+      var data = {
+        id: entity_id,
+        rating: rating,
+        entity_type: entity_type,
+        uid: Drupal.user.uid
+      };
+      //tag
+      //skip_validation
+      fivestar_rate({
+          data: JSON.stringify(data),
+          success: function(result) {
+            dpm(result);
+          }
+      });
+    }
   }
   catch (error) { console.log('_fivestar_widget_click - ' + error); }
 }
@@ -169,4 +206,33 @@ function fivestar_rate(options) {
     Drupal.services.call(options);
   }
   catch (error) { console.log('fivestar_rate - ' + error); }
+}
+
+/**
+ *
+ */
+function theme_fivestar(variables) {
+  try {
+    var html = '';
+    // Fivestar uses a value system based on 100, so let's figure out our base value.
+    // Iterate over each star and place them into a controlgroup.
+    var html = '<div class="fivestar" data-role="controlgroup" data-type="horizontal">';
+    for (var star = 1; star <= variables.stars; star++) {
+      var options = {
+        attributes: {
+          'class': 'ui-btn ui-corner-all ui-icon-star ui-btn-icon-left',
+          onclick: "_fivestar_widget_click(this, null, " + star + ", " +
+            fivestar_compute_value(star, variables.base) + ", " +
+            "'" + variables.entity_type + "', " +
+            variables.entity_id + ', ' +
+            variables.expose +
+          ")"
+        }
+      };
+      html += l(star, null, options);
+    }
+    html += '</div>';
+    return html;
+  }
+  catch (error) { console.log('theme_fivestar - ' + error); }
 }
