@@ -87,10 +87,7 @@ function fivestar_form_alter(form, form_state, form_id) {
           }
         }
     });
-    
-    
-    
-    
+
   }
   catch (error) { console.log('fivestar_form_alter - ' + error); }
 }
@@ -135,32 +132,34 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
     // Iterate over each item and assemble the element.
     var item_count = 0;
     $.each(items, function(delta, item) {
-        var html = '';
-        switch (display.settings.style) {
-          case 'average':
-            html += theme('fivestar', {
-                stars: field.settings.stars,
-                base: fivestar_compute_base(field.settings.stars),
-                entity_type: entity_type,
-                entity_id: entity[key],
-                expose: display.settings.expose,
-                rating: items[delta].rating
-            });
-            break;
-          /*case 'user':
-            // Used when creating a content rating system via user comments.
-            // @see https://drupal.org/node/1308114
-            //dpm(entity);
-            //dpm(field);
-            dpm(instance);
-            dpm(items);
-            dpm(display);
-            break;*/
-          default:
-            console.log('fivestar_field_formatter_view - unsupported style (' + display.settings.style + ')');
-            break;
+        // Styles: average, user
+        //   user - This is rendered in a comment that collected a user rating
+        //          at the time of posting, and no one else can vote on it. Not
+        //          entirely sure if this formatter gets rendered anywhere else.
+        var style = display.settings.style;
+        // Build the variables to render the fivestar widget.
+        var variables = {
+          stars: field.settings.stars,
+          base: fivestar_compute_base(field.settings.stars),
+          entity_type: entity_type,
+          entity_id: entity[key],
+          expose: display.settings.expose,
+          rating: items[delta].rating,
+          allow_clear: field.settings.allow_clear,
+          allow_ownvote: field.settings.allow_ownvote,
+          allow_revote: field.settings.allow_revote
+        };
+        // If it was a user style, set the exposed bit to true/false depending
+        // on the allow_revote setting. Revoting only happens if the current
+        // user is the author of the entity.
+        if (style == 'user') {
+          if (field.settings.allow_revote && Drupal.user.uid != 0 && Drupal.user.uid == entity.uid) {
+            variables.expose = true;
+          }
+          else { variables.expose = false; }
         }
-        element[delta] = { markup: html };
+        // Render the widget.
+        element[delta] = { markup: theme('fivestar', variables) };
         item_count++;
     });
     // If there are no items on this fivestar field, then it is probably
@@ -181,7 +180,12 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
                   container_id: container_id,
                   entity_type: entity_type,
                   entity_id: entity[key],
-                  stars: field.settings.stars
+                  stars: field.settings.stars,
+                  style: display.settings.style,
+                  allow_clear: field.settings.allow_clear,
+                  allow_ownvote: field.settings.allow_ownvote,
+                  allow_revote: field.settings.allow_revote,
+                  expose: display.settings.expose
               })
           })
       };
@@ -198,9 +202,31 @@ function _fivestar_field_formatter_view_pageshow(options) {
   try {
     fivestar_retrieve(options.entity_type, options.entity_id, null, null, {
         success: function(result) {
+          // Place the options into the result under the fivestar property.
           result.fivestar = options;
-          var html = theme('fivestar_average', result);
-          $('#' + options.container_id).html(html);
+          dpm(result);
+          // Theme the widget and the average, then inject them into the page.
+          var base = fivestar_compute_base(options.stars);
+          var average = fivestar_compute_average(
+            result.average.value,
+            result.count.value,
+            result.fivestar.stars
+          );
+          var html = '';
+          html += theme('fivestar', {
+              stars: options.stars,
+              base: base,
+              /*rating: fivestar_compute_rating(Math.round(average), base),*/
+              rating: result.average.value,
+              entity_type: options.entity_type,
+              entity_id: options.entity_id,
+              expose: options.expose,
+              allow_clear: options.allow_clear,
+              allow_ownvote: options.allow_ownvote,
+              allow_revote: options.allow_revote
+          });
+          html += theme('fivestar_average', result);
+          $('#' + options.container_id).html(html).trigger('create');
         }
     });
   }
@@ -219,13 +245,16 @@ function fivestar_field_widget_form(form, form_state, field, instance, langcode,
     dpm(element);*/
     // We'll just hide the actual input, and populate it later.
     items[delta].type = 'hidden';
-    // Iterate over each star and place them into a controlgroup.
     var html = theme('fivestar', {
         input_id: items[delta].id,
         stars: instance.settings.stars,
         base: fivestar_compute_base(instance.settings.stars),
         entity_type: form.entity_type,
-        entity_id: form.entity_id
+        entity_id: form.entity_id,
+        expose: instance.display.default.settings.expose,
+        allow_clear: instance.settings.allow_clear,
+        allow_ownvote: instance.settings.allow_ownvote,
+        allow_revote: instance.settings.allow_revote
     });
     items[delta].children.push({ markup: html });
   }
@@ -251,7 +280,7 @@ function _fivestar_widget_click(link, id, star, rating, entity_type, entity_id, 
     // number that was clicked, and set the value equal to the rating value.
     if (id) { $('#' + id).attr('star', star).val(rating); }
     // If the widget is exposed, make a service call to save the rating.
-    if (expose) {
+    if (expose && entity_id) {
       var data = {
         id: entity_id,
         rating: rating,
@@ -271,41 +300,12 @@ function _fivestar_widget_click(link, id, star, rating, entity_type, entity_id, 
 }
 
 /**
- *
- */
-function fivestar_rate(options) {
-  try {
-    options.method = 'POST';
-    options.path = 'fivestar/rate.json';
-    options.service = 'fivestar';
-    options.resource = 'rate';
-    Drupal.services.call(options);
-  }
-  catch (error) { console.log('fivestar_rate - ' + error); }
-}
-
-/**
- *
- */
-function fivestar_retrieve(entity_type, entity_id, tag, uid, options) {
-  try {
-    options.method = 'GET';
-    options.path = 'fivestar/' + entity_id + '.json';
-    if (entity_type) { options.path += '&entity_type=' + encodeURIComponent(entity_type); }
-    if (tag) { options.path += '&tag=' + encodeURIComponent(tag); }
-    if (uid) { options.path += '&uid=' + encodeURIComponent(uid); }
-    options.service = 'fivestar';
-    options.resource = 'retrieve';
-    Drupal.services.call(options);
-  }
-  catch (error) { console.log('fivestar_retrieve - ' + error); }
-}
-
-/**
- *
+ * Themes a fivestar widget.
  */
 function theme_fivestar(variables) {
   try {
+    //dpm('variables');
+    //dpm(variables);
     var html = '';
     // Iterate over each star and place them into a controlgroup.
     var html = '<div class="fivestar" data-role="controlgroup" data-type="horizontal">';
@@ -341,6 +341,8 @@ function theme_fivestar(variables) {
           ")"
         }
       };
+      // If it isn't exposed, remove the onclick handler.
+      if (!expose) { delete(options.attributes.onclick); }
       html += l(star, null, options);
     }
     html += '</div>';
@@ -350,7 +352,7 @@ function theme_fivestar(variables) {
 }
 
 /**
- *
+ * Themes a fivestar average.
  */
 function theme_fivestar_average(variables) {
   try {
@@ -360,16 +362,48 @@ function theme_fivestar_average(variables) {
       variables.count.value,
       variables.fivestar.stars
     );
+    var count = variables.count.value;
     var html = '<div ' + drupalgap_attributes(variables.attributes) + '>' +
-      '<p>Average: ' + average +
+      '<p>Average: ' + average/count +
       ' (' +
-        variables.count.value + ' ' +
-        drupalgap_format_plural(variables.count.value, 'vote', 'votes')  +
+        count + ' ' +
+        drupalgap_format_plural(count, 'vote', 'votes')  +
       ')</p>'
     '</div>';
     
     return html;
   }
   catch (error) { console.log('theme_fivestar_average - ' + error); }
+}
+
+/**
+ * The Fivestar Rate Service.
+ */
+function fivestar_rate(options) {
+  try {
+    options.method = 'POST';
+    options.path = 'fivestar/rate.json';
+    options.service = 'fivestar';
+    options.resource = 'rate';
+    Drupal.services.call(options);
+  }
+  catch (error) { console.log('fivestar_rate - ' + error); }
+}
+
+/**
+ * The Fivestar Retrieve Service.
+ */
+function fivestar_retrieve(entity_type, entity_id, tag, uid, options) {
+  try {
+    options.method = 'GET';
+    options.path = 'fivestar/' + entity_id + '.json';
+    if (entity_type) { options.path += '&entity_type=' + encodeURIComponent(entity_type); }
+    if (tag) { options.path += '&tag=' + encodeURIComponent(tag); }
+    if (uid) { options.path += '&uid=' + encodeURIComponent(uid); }
+    options.service = 'fivestar';
+    options.resource = 'retrieve';
+    Drupal.services.call(options);
+  }
+  catch (error) { console.log('fivestar_retrieve - ' + error); }
 }
 
