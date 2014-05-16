@@ -8,11 +8,15 @@ Installation
 
 Install this sandbox module on your Drupal site:
 
-https://drupal.org/sandbox/joshberry/1526726
+```
+  https://drupal.org/sandbox/joshberry/1526726
+```
 
 Then enable the fivestar resources (retrieve, rate) under:
 
+```
   admin/structure/services/list/drupalgap/resources
+```
 
 User Permissions
 ================
