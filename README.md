@@ -23,4 +23,12 @@ User Permissions
 
 Make sure a user role(s) has permission to "rate content" on your Drupal site:
 
-admin/people/permissions
+```
+  admin/people/permissions
+```
+
+Other Resources
+===============
+ - https://drupal.org/project/fivestar
+ - https://drupal.org/node/1308114
+
