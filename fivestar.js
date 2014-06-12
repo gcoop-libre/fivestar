@@ -120,82 +120,37 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
     // @UPDATE - yes, it turns out DG core was not sending it, and it was sending
     // them in the wrong order, it is now being sent, but they are actually backwards, le sigh.
     //dpm('fivestar_field_formatter_view');
-    /*dpm(entity_type);
-    dpm(entity);
-    dpm(field);
-    dpm(instance);
-    dpm(items);
-    dpm(display);
-    dpm(display.settings.style);
-    dpm(items);*/
+    //dpm(entity_type);
+    //dpm(entity);
+    //dpm(field);
+    //dpm(instance);
+    //dpm(items);
+    //dpm(display);
+    //dpm(items);
     // Grab the entity primary key and start building the element.
     var key = entity_primary_key(entity_type);
     var element = {};
-    // Determine the Style: average, user
-    //   user - This is rendered in a comment that collected a user rating
-    //          at the time of posting, and no one else can vote on it. Not
-    //          entirely sure if this formatter gets rendered anywhere else.
-    var style = display.settings.style;
     // Iterate over each item and assemble the element.
     var item_count = 0;
     $.each(items, function(delta, item) {
-        // Build the variables to render the fivestar widget.
-        /*var variables = {
-          stars: field.settings.stars,
-          base: fivestar_compute_base(field.settings.stars),
-          entity_type: entity_type,
-          entity_id: entity[key],
-          expose: display.settings.expose,
-          rating: items[delta].rating,
-          allow_clear: field.settings.allow_clear,
-          allow_ownvote: field.settings.allow_ownvote,
-          allow_revote: field.settings.allow_revote
-        };*/
-        // If it was a user style, set the exposed bit to true/false depending
-        // on the allow_revote setting. Revoting only happens if the current
-        // user is the author of the entity.
-        /*if (style == 'user') {
-          if (field.settings.allow_revote && Drupal.user.uid != 0 && Drupal.user.uid == entity.uid) {
-            variables.expose = true;
-          }
-          else { variables.expose = false; }
-        }*/
-        // Render the widget.
-        //element[delta] = { markup: theme('fivestar', variables) };
         // Attach the pageshow handler for the widget.
         var container_id = fivestar_container_id(entity_type, entity[key], delta); 
         element[delta] = {
-          markup: '<div id="' + container_id + '">Loading...</div>' +
-            drupalgap_jqm_page_event_script_code({
-                page_id: drupalgap_get_page_id(),
-                jqm_page_event: 'pageshow',
-                jqm_page_event_callback: '_fivestar_field_formatter_view_pageshow',
-                jqm_page_event_args: JSON.stringify({
-                    container_id: container_id,
-                    entity_type: entity_type,
-                    entity_id: entity[key],
-                    stars: field.settings.stars,
-                    style: display.settings.style,
-                    allow_clear: field.settings.allow_clear,
-                    allow_ownvote: field.settings.allow_ownvote,
-                    allow_revote: field.settings.allow_revote,
-                    expose: display.settings.expose
-                })
-            },
-            delta
-          )
+          markup: _fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display, container_id, key, item, delta)
         };
-        //item_count++;
+        item_count++;
     });
-    //dpm(item_count);
     // If there are no items on this fivestar field, then it is probably
     // a field that is set as the parent target of another fivestar field.
     // That means we need to manually retrieve the data from Drupal, and then
     // inject it into the fivestar element container.
     // @see https://drupal.org/node/1308114
-    //if (item_count == 0) {
-      
-    //}
+    if (item_count == 0 && entity_type == 'node') {
+      var container_id = fivestar_container_id(entity_type, entity[key], 0); 
+      element[0] = {
+        markup: _fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display, container_id, key, null, 0)
+      };
+    }
     return element;
   }
   catch (error) { console.log('fivestar_field_formatter_view - ' + error); }
@@ -204,47 +159,119 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
 /**
  *
  */
+function _fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display, container_id, key, item, delta) {
+  try {
+    // Setup the pageshow args.
+    var jqm_page_event_args = {
+        container_id: container_id,
+        entity_type: entity_type,
+        entity_id: entity[key],
+        entity_uid: entity.uid,
+        stars: field.settings.stars,
+        style: display.settings.style,
+        allow_clear: field.settings.allow_clear,
+        allow_ownvote: field.settings.allow_ownvote,
+        allow_revote: field.settings.allow_revote,
+        expose: display.settings.expose,
+        style: display.settings.style
+    };
+    // If we have an item, attach it's rating to the pageshow args.
+    if (item) { jqm_page_event_args.rating = item.rating; }
+    // Return the html.
+    return '<div id="' + container_id + '"></div>' +
+      drupalgap_jqm_page_event_script_code({
+          page_id: drupalgap_get_page_id(),
+          jqm_page_event: 'pageshow',
+          jqm_page_event_callback: '_fivestar_field_formatter_view_pageshow',
+          jqm_page_event_args: JSON.stringify(jqm_page_event_args)
+      },
+      container_id
+    );
+  }
+  catch (error) { console.log('_fivestar_field_formatter_view - ' + error); }
+}
+
+/**
+ *
+ */
 function _fivestar_field_formatter_view_pageshow(options) {
   try {
-    //dpm('_fivestar_field_formatter_view_pageshow');
-    fivestar_retrieve(options.entity_type, options.entity_id, null, null, {
-        success: function(result) {
-          //dpm('_fivestar_field_formatter_view_pageshow - success');
-          //dpm(result);
-          // Place the options into the result under the fivestar property.
-          result.fivestar = options;
-          // Theme the widget and the average, then inject them into the page.
-          var base = fivestar_compute_base(options.stars);
-          var average = fivestar_compute_average(
-            result.average.value,
-            result.count.value,
-            result.fivestar.stars
-          );
-          // Did the user already vote (star) this entity?
-          var user_rated = true;
-          var user_value = null;
-          if ($.isArray(result.user) && result.user.length == 0) { user_rated = false; }
-          else {
-            user_value = result.user.value;
-          }
-          var html = '';
-          html += theme('fivestar', {
-              stars: options.stars,
-              base: base,
-              rating: result.average.value,
-              entity_type: options.entity_type,
-              entity_id: options.entity_id,
-              expose: options.expose,
-              allow_clear: options.allow_clear,
-              allow_ownvote: options.allow_ownvote,
-              allow_revote: options.allow_revote,
-              user_rated: user_rated,
-              user_value: user_value
-          });
-          html += theme('fivestar_average', result);
-          $('#' + options.container_id).html(html).trigger('create');
+    // First, declare the succes callback function.
+    var _success = function(result) {
+      // Place the options into the result under the fivestar property.
+      result.fivestar = options;
+      // Theme the widget and the average, then inject them into the page.
+      var base = fivestar_compute_base(options.stars);
+      var average = fivestar_compute_average(
+        result.average.value,
+        result.count.value,
+        options.stars
+      );
+      // Did the user already vote (star) this entity?
+      var user_rated = true;
+      var user_value = null;
+      if (result.user) {
+        if ($.isArray(result.user) && result.user.length == 0) { user_rated = false; }
+        else {
+          user_value = result.user.value;
         }
-    });
+      }
+      // Build the variables to theme the fivestar.
+      var variables = {
+        stars: options.stars,
+        base: base,
+        rating: result.average.value,
+        entity_type: options.entity_type,
+        entity_id: options.entity_id,
+        expose: options.expose,
+        allow_clear: options.allow_clear,
+        allow_ownvote: options.allow_ownvote,
+        allow_revote: options.allow_revote,
+        user_rated: user_rated,
+        user_value: user_value
+      };
+      // If it was a user style, set the exposed bit to true/false depending
+      // on the allow_revote setting. Revoting only happens if the current
+      // user is the author of the entity.
+      // Styles: average, user
+      //   user - This is rendered in a comment that collected a user rating
+      //          at the time of posting, and no one else can vote on it. Not
+      //          entirely sure if this formatter gets rendered anywhere else.
+      if (options.style == 'user') {
+        if (options.allow_revote && Drupal.user.uid != 0 && Drupal.user.uid == options.entity_uid) {
+          variables.expose = true;
+        }
+        else { variables.expose = false; }
+      }
+      // Finally, render the fivestar.
+      var html = '';
+      html += theme('fivestar', variables);
+      if (variables.expose) {
+        html += theme('fivestar_average', result);
+      }
+      $('#' + options.container_id).html(html).trigger('create');
+    };
+    //dpm('_fivestar_field_formatter_view_pageshow');
+    // If we have a rating, we don't need to fetch it from the site. This
+    // happens (I think) for all fivestar fields that do not have a parent
+    // target set.
+    if (options.rating) {
+      // We need to assemble a fake result object to get it to theme.
+      var _result = {
+        average: { value: options.rating },
+        count: { value: 1 },
+        fivestar: { },
+        user: { value: options.rating }
+      };
+      _success(_result);
+    }
+    else {
+      // We don't have a rating, fetch it from the site. This (I think) only
+      // happens when the fivestar field is set as a parent node target.
+      fivestar_retrieve(options.entity_type, options.entity_id, null, null, {
+          success: _success
+      });
+    }
   }
   catch (error) { console.log('_fivestar_field_formatter_view_pageshow - ' + error); }
 }
