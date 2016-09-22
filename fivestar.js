@@ -32,17 +32,16 @@ function fivestar_compute_rating(star, base) {
 /**
  *
  */
-function fivestar_container_id(entity_type, entity_id, delta) {
+function fivestar_container_id(entity_type, entity_id, delta, fieldname) {
   try {
 
     //
     // Allow to have more than one fivestar field on node_vew
     //
 
-    var x = Math.floor((Math.random() * 999999) + 1);
     var id = 'new';
     if (entity_id) { id = entity_id; }
-    return 'fivestar_' + entity_type + '_' + entity_id + '_' + delta + x;
+    return 'fivestar_' + entity_type + '_' + entity_id + '_' + delta + '_' + fieldname;
   }
   catch (error) { console.log('fivestar_container_id - ' + error); }
 }
@@ -140,7 +139,7 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
     var item_count = 0;
     $.each(items, function(delta, item) {
         // Attach the pageshow handler for the widget.
-        var container_id = fivestar_container_id(entity_type, entity[key], delta);
+        var container_id = fivestar_container_id(entity_type, entity[key], delta, field.field_name);
         element[delta] = {
           markup: _fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display, container_id, key, item, delta)
         };
@@ -152,7 +151,7 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
     // inject it into the fivestar element container.
     // @see https://drupal.org/node/1308114
     if (item_count == 0 && entity_type == 'node') {
-      var container_id = fivestar_container_id(entity_type, entity[key], 0);
+      var container_id = fivestar_container_id(entity_type, entity[key], 0, field.field_name);
       element[0] = {
         markup: _fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display, container_id, key, null, 0)
       };
