@@ -34,9 +34,15 @@ function fivestar_compute_rating(star, base) {
  */
 function fivestar_container_id(entity_type, entity_id, delta) {
   try {
+
+    //
+    // Allow to have more than one fivestar field on node_vew
+    //
+
+    var x = Math.floor((Math.random() * 999999) + 1);
     var id = 'new';
     if (entity_id) { id = entity_id; }
-    return 'fivestar_' + entity_type + '_' + entity_id + '_' + delta;
+    return 'fivestar_' + entity_type + '_' + entity_id + '_' + delta + x;
   }
   catch (error) { console.log('fivestar_container_id - ' + error); }
 }
@@ -46,31 +52,31 @@ function fivestar_container_id(entity_type, entity_id, delta) {
  */
 function fivestar_form_alter(form, form_state, form_id) {
   try {
-    
+
     //dpm(form_id);
     //dpm(form);
-    
+
     /*
-    
+
     // Select list (rated while editing)
     field_info_instance.widget.type == 'fivestar_select'
-    
+
     // Stars (rated while viewing)
     field_info_instance.widget.type == 'exposed'
-    
+
     // Stars (rated while editing)
     field_info_instance.widget.type == 'stars'
-    
+
     */
-    
+
     // Only modify entity forms.
     if (!form.entity_type) { return; }
-    
+
     // Make potential alterations to any entity form that has a fivestar field
     // on it. There are modifications to both entity add and edit forms.
     var new_entity = false;
     if (form.entity_type && !form.entity_id) { new_entity = true; }
-    
+
     $.each(form.elements, function(name, element) {
         if (element.is_field && element.type == 'fivestar') {
           if (new_entity) {
@@ -134,7 +140,7 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
     var item_count = 0;
     $.each(items, function(delta, item) {
         // Attach the pageshow handler for the widget.
-        var container_id = fivestar_container_id(entity_type, entity[key], delta); 
+        var container_id = fivestar_container_id(entity_type, entity[key], delta);
         element[delta] = {
           markup: _fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display, container_id, key, item, delta)
         };
@@ -146,7 +152,7 @@ function fivestar_field_formatter_view(entity_type, entity, field, instance, lan
     // inject it into the fivestar element container.
     // @see https://drupal.org/node/1308114
     if (item_count == 0 && entity_type == 'node') {
-      var container_id = fivestar_container_id(entity_type, entity[key], 0); 
+      var container_id = fivestar_container_id(entity_type, entity[key], 0);
       element[0] = {
         markup: _fivestar_field_formatter_view(entity_type, entity, field, instance, langcode, items, display, container_id, key, null, 0)
       };
@@ -320,12 +326,12 @@ function _fivestar_widget_click(link, id, star, rating, entity_type, entity_id, 
     // should not attach the onclick, so we should never arrive here if it
     // isn't exposed, we just add this for one extra layer of protection.
     if (!expose) { return; }
-    
+
     // Activate the link that was clicked, and each sibling preceding it.
     var classes = 'ui-btn-active ui-state-persist';
     $(link).removeClass(classes).siblings().removeClass(classes);
     $(link).addClass(classes).prevAll().addClass(classes);
-    
+
     // If we have an input id, set the 'star' attribute equal to the the star
     // number that was clicked, and set the value equal to the rating value.
     if (id) { $('#' + id).attr('star', star).val(rating); }
@@ -434,7 +440,7 @@ function theme_fivestar_average(variables) {
         drupalgap_format_plural(count, 'vote', 'votes')  +
       ')</p>'
     '</div>';
-    
+
     return html;
   }
   catch (error) { console.log('theme_fivestar_average - ' + error); }
