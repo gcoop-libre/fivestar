@@ -362,6 +362,7 @@ function _fivestar_widget_click(link, id, star, rating, entity_type, entity_id, 
  */
 function theme_fivestar(variables) {
   try {
+    debugger;
     //dpm('variables');
     //dpm(variables);
     var html = '';
@@ -369,7 +370,7 @@ function theme_fivestar(variables) {
     var html = '<div class="fivestar" data-role="controlgroup" data-type="horizontal">';
     var link_classes = null;
     for (var star = 1; star <= variables.stars; star++) {
-      link_classes = ' ui-btn ui-corner-all ui-icon-star ui-btn-icon-left ';
+      link_classes = ' ui-btn ui-corner-all ui-icon-star ui-btn-icon-notext ui-btn-inline ui-mini ';
       // Compute the rating value of this star.
       var rating = fivestar_compute_rating(star, variables.base);
       // Set the hidden input's id as a string, if it exists.
@@ -475,4 +476,3 @@ function fivestar_retrieve(entity_type, entity_id, tag, uid, options) {
   }
   catch (error) { console.log('fivestar_retrieve - ' + error); }
 }
-
