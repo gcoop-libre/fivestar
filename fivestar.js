@@ -362,7 +362,6 @@ function _fivestar_widget_click(link, id, star, rating, entity_type, entity_id, 
  */
 function theme_fivestar(variables) {
   try {
-    debugger;
     //dpm('variables');
     //dpm(variables);
     var html = '';
